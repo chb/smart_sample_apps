@@ -17,7 +17,8 @@ $.Model.extend('ApiType',
 	},
 
 	find_all_types_and_calls: function() {
-		SMART.ONTOLOGY_get(function(ont) {
+		SMART.ONTOLOGY_get(function(r) {
+            var ont = r.graph;
 			this.ontology = ont;
 			
 			// Get all types
@@ -50,6 +51,7 @@ $.Model.extend('ApiType',
 	},
 	
 	addInterpolationValue: function(field, value) {
+        //console.log ("adding interpolation " + field + " " + value);
 		if (this.interpolations.lists[field] === undefined)
 			this.interpolations.lists[field] = [];
 		
@@ -141,22 +143,28 @@ $.Model.extend('ApiType',
 				base_regexes.push(ApiType.pathRegex(call.path));	
 		});
 		
-		var args = c.buildCallArgs("", function(contentType, data) {
-   			var rdf = SMART.process_rdf(contentType, data);
-			var typed_entities = rdf.where("?s rdf:type ?p");
-			//console.log("Typed entities available: " + typed_entities.length);
-			
-			$.each(typed_entities, function() {
-				var entity_url = ""+this.s.value;
-				$.each(base_regexes, function() {
-					var matched = this(entity_url);
-					$.each(matched, function(fieldname, value) {
-						ApiType.addInterpolationValue(fieldname, value);
-					});
-				
-				});
+		var args = c.buildCallArgs("", function(r) {
+        
+            if (r.contentType === "application/rdf+xml") {
+                var rdf = SMART.process_rdf(r.contentType, r.body);
+                var typed_entities = rdf.where("?s rdf:type ?p");
+                //console.log("Typed entities available: " + typed_entities.length);
+                
+                $.each(typed_entities, function() {
+                    var entity_url = ""+this.s.value;
+                    $.each(base_regexes, function() {
+                        var matched = this(entity_url);
+                        $.each(matched, function(fieldname, value) {
+                            ApiType.addInterpolationValue(fieldname, value);
+                        });
+                    
+                    });
 
-			});
+                });
+            }
+            ApiType.addInterpolationValue("user_id",SMART.user.id);
+            ApiType.addInterpolationValue("smart_app_id",SMART.manifest.id);
+
    		});
    		
    		SMART.api_call(args[0], args[1]);
@@ -215,7 +223,15 @@ $.Model.extend('ApiCall',
 	
 	contentType: function() {
 		if ($.inArray(this.method, this.Class.payload_methods) !== -1) {
-			return "application/rdf+xml";
+            var path = this.path
+            var suffix = "/preferences";
+            if (path.indexOf(suffix, path.length - suffix.length) !== -1) {
+                // Preferences API call
+                return "text/plain";
+            } else {
+                // All other calls
+                return "application/rdf+xml";
+            }
 		}
 		return "application/x-www-form-urlencoded";
 	},
@@ -226,6 +242,7 @@ $.Model.extend('ApiCall',
 	},
 	
 	buildCallArgs: function(data, callback) {
+        
 		var call_args = [{
 			method: this.method, 
 			url: ApiType.interpolatedPath(this.path), 

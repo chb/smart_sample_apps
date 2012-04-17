@@ -121,29 +121,50 @@ jQuery.Controller.extend('ApiPlayground.Controllers.MainController',
     								this.callback(this.receivedResult))
     },
     
-    receivedResult: function(contentType, data) {
-	r = SMART.process_rdf(contentType, data);
-    	//console.log("got data" + contentType + data);
-	window.response = r;
-	window.jash.clear();
-	window.jash.output.value = data;
-	window.jash.output.value += "\n\n------------\n";
-	window.jash.output.value += window.jash.defaultText;
-	window.jash.output.value += "\n";
-	window.jash.output.value += "Triples in RDF graph returned: " + response.where('?s ?p ?o.').length+"\n\n";
-	window.jash.output.value += "To explore the graph, try:\n";
-	window.jash.output.value += "  > response.source_xml\n";
-	window.jash.output.value += "  > response.where('?s ?p ?o.').length\n";
-	window.jash.output.value += "  > response.where('?s ?p ?o.')[0].s \n";
-    	this.response_box.show();
-	window.jash.print("\nTo explore type or paste commands in the textbox below, then press Enter.");
-	window.jash.input.focus();
-    	$(".cancel-call").removeAttr("DISABLED");
-		$(".complete-call").removeAttr("DISABLED");
-    	$("#interpolation-fields INPUT").each(function() {
-			$i = $(this);
-    		$i.removeAttr("DISABLED");
-    	});
+    receivedResult: function(res) {
+        var data = res.body,
+            contentType = res.contentType;
+    
+        if (contentType === "application/rdf+xml") {
+            r = SMART.process_rdf(contentType, data);
+            
+            if ($('#serialization').val() === "ntriples") {
+                data = "";
+                r.where('?s ?p ?o')
+                    .each(function(){
+                        data += this.s.toString() + " " + this.p.toString() + " " + this.o.toString() + " .\n";
+                    });
+            }
+            
+            //console.log("got data" + contentType + data);
+            window.response = r;
+            window.jash.clear();
+            window.jash.output.value = data;
+            window.jash.output.value += "\n\n------------\n";
+            window.jash.output.value += window.jash.defaultText;
+            window.jash.output.value += "\n";
+            window.jash.output.value += "Triples in RDF graph returned: " + response.where('?s ?p ?o.').length+"\n\n";
+            window.jash.output.value += "To explore the graph, try:\n";
+            window.jash.output.value += "  > response.source_xml\n";
+            window.jash.output.value += "  > response.where('?s ?p ?o.').length\n";
+            window.jash.output.value += "  > response.where('?s ?p ?o.')[0].s \n";
+                this.response_box.show();
+            window.jash.print("\nTo explore type or paste commands in the textbox below, then press Enter.");
+            window.jash.input.focus();
+                $(".cancel-call").removeAttr("DISABLED");
+                $(".complete-call").removeAttr("DISABLED");
+                $("#interpolation-fields INPUT").each(function() {
+                    $i = $(this);
+                    $i.removeAttr("DISABLED");
+                });
+        } else {
+            window.jash.clear();
+            window.jash.output.value = data;
+            window.jash.output.value += "\n\n------------\n";
+            window.jash.output.value += window.jash.defaultText;
+            window.jash.output.value += "\n";
+            this.response_box.show();
+        }
 
     	this.selected_top_group.group_type.fetchParameters();		
     }
