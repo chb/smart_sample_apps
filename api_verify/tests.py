@@ -19,8 +19,11 @@ import dateutil.parser
 # Enables automated sparql query generation from the ontology
 import query_builder
 
+# Import the manifest validator function
+from smart_client.common.utils.manifest_tests import manifest_structure_validator
+
 # RDF parsing wrapper from the SMART python client
-from smart_client.common.util import parse_rdf
+from smart_client.common.rdf_tools.util import parse_rdf
 
 # Global variables for state synchronization accross the test suites
 lock = threading.Lock()
@@ -81,7 +84,12 @@ def testRDF (graph, model):
         # Negative queries should not return any results
         if type == "negative":
             # Run the query and report any failures
-            results = graph.query(q)
+            try:
+                results = graph.query(q)
+            except:
+                print "problem with QUERY!"
+                print q
+                
             
             # Stingify the results (limit to first 3)
             # This is needed to work around a bug in rdflib where the non-matched results
@@ -391,32 +399,35 @@ class TestCapabilities(TestJSON):
                     for m in d[k]["methods"]:
                         if m not in ("GET", "POST", "PUT", "DELETE"):
                             self.fail ("Improper method '%s' for API '%s'" % (m,k))
-                            
+                    
+class TestManifest(TestJSON):
+    '''Tests for a single manifest'''
+
+    def testStructure (self):
+        '''Test for the manifests JSON output'''
+        
+        if self.json: 
+            messages = manifest_structure_validator(self.json)
+            if len(messages) > 0 :
+                self.fail ("Manifest structure test failed\n" + "\n".join(messages))
     
 class TestManifests(TestJSON):
     '''Tests for the manifests'''
 
     def testStructure (self):
-        '''A simple structure test for the manifests JSON output'''
+        '''Test for the manifests JSON output'''
         
         if self.json:
         
             if type(self.json) != list:
-                self.fail ("The JSON payload should be a list:")
+                self.fail ("The JSON payload should be a list")
         
+            # Because we have a list of manifests, we have to iterate over the items
+            messages = []
             for manifest in self.json:
-                if type(manifest) != dict:
-                    self.fail ("The manifest definition should be a dictionary")
-                keys = manifest.keys()
-                if "name" not in keys or not isinstance(manifest["name"], basestring) :
-                    self.fail ("All app manifests must have a 'name' string property")
-                if "description" not in keys or not isinstance(manifest["description"], basestring) :
-                    self.fail ("All app manifests must have a 'description' string property")
-                if "id" not in keys or not isinstance(manifest["id"], basestring) :
-                    self.fail ("All app manifests must have a 'id' string property")
-                if "mode" not in keys or manifest["mode"] not in ("ui","background","frame_ui") :
-                    self.fail ("'mode' property must be one of ('ui','background','frame_ui')")
-    
+                messages += manifest_structure_validator(manifest)
+            if len(messages) > 0 :
+                self.fail ("Manifests structure test failed\n" + "\n".join(messages))
     
 class TestPreferences(unittest.TestCase):
     '''Tests for the Preferences API'''
@@ -441,6 +452,7 @@ class TestPreferences(unittest.TestCase):
 # Defines the mapping between the content models and the test suites
 tests = {'Allergy': TestAllergies,
          'AppManifest': TestManifests,
+         'Manifest': TestManifest,   # this is a custom model not present in the ontology
          'Demographics': TestDemographics,
          'Capabilities': TestCapabilities,
          'Encounter': TestEncounters,
