@@ -10,3 +10,6 @@
 [submodule "smart_client"]
 	path = smart_client
 	url = https://github.com/chb/smart_client_python.git
+[submodule "admin_ui/indivo_client_py/oauth"]
+	path = admin_ui/indivo_client_py/oauth
+	url = https://github.com/chb/oauth_py.git
