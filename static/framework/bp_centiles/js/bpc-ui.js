@@ -17,26 +17,39 @@ if (!BPC) {
     "use strict";
 
     /**
-    * Document onLoad event handler (jQuery style)
+    * Document ready event handler (jQuery style)
     */
-    SMART.ready(function() {
+    $(document).ready(function() {
+        SMART.ready(function() {
+            
+            if ( typeof SMART === "undefined" ) {
+                $("#info").text("Error: SMART Connect interface not found");
+            } else {
+                // Fire up the SMART API calls and initialize the application asynchronously
+                $.when(BPC.get_demographics(), BPC.get_vitals(0))
+                 .then( function (demographics, vitals) {
+                            var total = vitals.total;
+                            BPC.initApp ( BPC.processData(demographics, vitals) );
+                            if (BPC.settings.progressive_loading) {
+                                BPC.loadAdditionalVitals (demographics, vitals, BPC.settings.vitals_limit, total);
+                            } else {
+                                BPC.vitals = vitals;
+                                BPC.demographics = demographics;
+                            }
+                        },
+                        function (message) {
+                            BPC.displayError (message.data);
+                        });
+            }
+            
+            // Add other things to do upon document loading here...
+            
+        }); // end document.ready handler
         
-        if ( typeof SMART === "undefined" ) {
-            $("#info").text("Error: SMART Connect interface not found");
-        } else {
-            // Fire up the SMART API calls and initialize the application asynchronously
-            $.when(BPC.get_demographics(), BPC.get_vitals())
-             .then( function (patient, vitals) {
-                        BPC.initApp ( BPC.processData(patient, vitals) ); 
-                    },
-                    function (message) {
-                        BPC.displayError (message.data);
-                    });
-        }
-        
-        // Add other things to do upon document loading here...
-        
-    }); // end document.ready handler
+        SMART.fail (function () {
+            BPC.initApp ( BPC.getSamplePatient(), true );
+        });
+    });
     
     /**
     * Displays an error message on the screen
@@ -149,13 +162,20 @@ if (!BPC) {
             show: function(event, ui) {
                 // Redraw the long term view whenever the tab gets shown (workaround for Raphael label drawing in hidden canvas bug)
                 if (ui.tab.hash === "#tab_long") {
-                    BPC.redrawViewLong (BPC.patient,BPC.zones);
+                    BPC.redrawViewLong (BPC.patient,BPC.settings.zones);
                 }
                 else if (ui.tab.hash === "#tab_short") {
                     // TO DO: consider redrawing the short term view
                 }
             }
         });
+        
+        // Select the Long Term View tab
+        if (BPC.settings.default_to_long_term_view) {
+            $('#tabs').tabs({
+                selected: 1
+            });
+        }
         
         // Patch to enable filter band persistance by JCM
         $('#tabs').bind('tabsshow', function(ev,ui){
@@ -183,6 +203,27 @@ if (!BPC) {
         // Initialize the slider range
         BPC.setDateRange($("#slider-timerange").slider("values", 0),$("#slider-timerange").slider("values", 1));
     };
+    
+    /**
+    * Initializes the default filter button states in the BP app
+    */
+    BPC.initFilterButtons = function () {
+        var i, button;
+    
+        for (i in BPC.settings.filterButtonsSettings) {
+        
+            button = BPC.settings.filterButtonsSettings[i];
+            
+            // Initialize the default filter buttons state
+            $('#' + button.handle).attr("checked", button.onByDefault);
+            $('#' + button.handle).button("refresh");
+            
+            // Note: this is a workaround for a jQuery/jQueryUI issue where the state of the underlying object
+            // is not updated by jQuery UI clicks and overrides the state of the jQuery ui button element
+            //$('[for=chkFilterAmbulatory]').click();
+        }
+
+    }
 
     /**
     * Sets the state for all filter UI components
